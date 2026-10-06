@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memorama de Sílabas</title>
+<style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+        font-family: Arial, Helvetica, sans-serif;
+        text-align: center;
+        background: #111;
+        color: #fff;
+        padding: 12px 10px 30px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    h1 { font-size: clamp(1.2rem, 4.5vw, 2.2rem); margin: 8px 0; }
+    h2 { font-size: clamp(1rem, 3.5vw, 1.6rem); margin: 10px 0; }
+
+    button {
+        padding: 10px 14px;
+        margin: 4px;
+        background: #ff5733;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+        border-radius: 8px;
+        font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+        font-weight: bold;
+        min-width: 44px;
+        min-height: 44px;
+    }
+    button:hover { background: #c44224; }
+    button.activo { outline: 3px solid #fff; }
+
+    .niveles { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; }
+
+    .tablero {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        width: 100%;
+        max-width: 960px;
+        margin-top: 14px;
+    }
+    @media (min-width: 480px) {
+        .tablero { grid-template-columns: repeat(5, 1fr); gap: 14px; }
+    }
+
+    .tarjeta {
+        aspect-ratio: 1 / 1;
+        width: 100%;
+        background: #ff5733;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        transition: transform .3s, background-color .3s;
+        box-shadow: 0 0 10px rgba(255,255,255,.5);
+        overflow: hidden;
+        line-height: 1.05;
+        font-weight: bold;
+    }
+    .tarjeta:hover { transform: scale(1.05); }
+    .tarjeta .interrogante { font-size: clamp(2rem, 9vw, 3.5rem); }
+    .tarjeta .emoji { font-size: clamp(2.2rem, 10vw, 4rem); }
+    .tarjeta .sil   { font-size: clamp(1.4rem, 6vw, 2.4rem); }
+    .tarjeta .pal   { font-size: clamp(.7rem, 2.6vw, 1rem); font-weight: normal; }
+    .tarjeta.mostrar { background: #fff; color: #000; }
+    .tarjeta.acertada { background: #b8f5b8; box-shadow: 0 0 14px #4cff4c; }
+
+    @media (min-width: 480px) {
+        .tarjeta .emoji { font-size: clamp(1.8rem, 6vw, 3.5rem); }
+        .tarjeta .sil   { font-size: clamp(1.1rem, 3.4vw, 2rem); }
+        .tarjeta .pal   { font-size: clamp(.6rem, 1.6vw, .95rem); }
+        .tarjeta .interrogante { font-size: clamp(1.8rem, 5vw, 3rem); }
+    }
+</style>
+</head>
+<body>
+    <h1>Juego de Memorama - Sílabas</h1>
+
+    <div class="controles">
+        <button id="btnLeer" onclick="toggleLeerTexto()">🔊 Leer texto: Sí</button>
+        <button id="btnSonido" onclick="toggleSonido()">🎵 Sonido: Sí</button>
+    </div>
+
+    <h2 id="nivel">Selecciona un nivel</h2>
+    <div class="niveles" id="seleccion-nivel"></div>
+
+    <div class="tablero" id="tablero"></div>
+
+    <audio id="sonidoParEncontrado" src="https://www.myinstants.com/media/sounds/cartoon-jump.mp3" preload="auto"></audio>
+
+<script>
+    let leerTextoActivo = true;
+    let sonidoActivo = true;
+
+    function toggleLeerTexto() {
+        leerTextoActivo = !leerTextoActivo;
+        document.getElementById("btnLeer").textContent = `🔊 Leer texto: ${leerTextoActivo ? "Sí" : "No"}`;
+        if (!leerTextoActivo && window.speechSynthesis) window.speechSynthesis.cancel();
+    }
+    function toggleSonido() {
+        sonidoActivo = !sonidoActivo;
+        document.getElementById("btnSonido").textContent = `🎵 Sonido: ${sonidoActivo ? "Sí" : "No"}`;
+    }
+
+    // Cada sílaba tiene su imagen (emoji) y su palabra
+    const datos = {
+        "M": {
+            "Ma": ["🦋", "mariposa"], "Me": ["🍈", "melón"], "Mi": ["🐒", "mico"],
+            "Mo": ["🏍️", "moto"],     "Mu": ["🪆", "muñeca"]
+        },
+        "P": {
+            "Pa": ["🥔", "papa"], "Pe": ["🐟", "pez"], "Pi": ["🍍", "piña"],
+            "Po": ["🐔", "pollo"], "Pu": ["🚪", "puerta"]
+        },
+        "L": {
+            "La": ["✏️", "lápiz"], "Le": ["🦁", "león"], "Li": ["📖", "libro"],
+            "Lo": ["🐺", "lobo"],   "Lu": ["🌙", "luna"]
+        },
+        "S": {
+            "Sa": ["🍉", "sandía"], "Se": ["🐍", "serpiente"], "Si": ["🪑", "silla"],
+            "So": ["☀️", "sol"],    "Su": ["🧥", "suéter"]
+        },
+        "T": {
+            "Ta": ["☕", "taza"], "Te": ["📺", "tele"], "Ti": ["🦈", "tiburón"],
+            "To": ["🍅", "tomate"], "Tu": ["🦜", "tucán"]
+        },
+        "D": {
+            "Da": ["🎲", "dado"], "De": ["👆", "dedo"], "Di": ["🦖", "dinosaurio"],
+            "Do": ["🍩", "dona"], "Du": ["🍬", "dulce"]
+        },
+        "N": {
+            "Na": ["🍊", "naranja"], "Ne": ["👶", "nene"], "Ni": ["👧", "niña"],
+            "No": ["🌃", "noche"],   "Nu": ["☁️", "nube"]
+        },
+        "R": {
+            "Ra": ["🐸", "rana"], "Re": ["⏰", "reloj"], "Ri": ["🦏", "rinoceronte"],
+            "Ro": ["🌹", "rosa"], "Ru": ["💎", "rubí"]
+        }
+    };
+    const niveles = Object.keys(datos);
+
+    // Botones de nivel
+    const contNiveles = document.getElementById("seleccion-nivel");
+    niveles.forEach(n => {
+        const b = document.createElement("button");
+        b.textContent = n;
+        b.dataset.nivel = n;
+        b.addEventListener("click", () => seleccionarNivel(n));
+        contNiveles.appendChild(b);
+    });
+
+    const sonidoPar = document.getElementById("sonidoParEncontrado");
+    let nivelActual = null;
+    let silabas = [];
+    let primeraCarta = null;
+    let segundaCarta = null;
+    let bloqueo = false;
+
+    function barajar(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    function seleccionarNivel(nivel) {
+        nivelActual = nivel;
+        primeraCarta = segundaCarta = null;
+        bloqueo = false;
+        document.getElementById("nivel").textContent = `Nivel: ${nivel}`;
+        document.querySelectorAll(".niveles button").forEach(b =>
+            b.classList.toggle("activo", b.dataset.nivel === nivel));
+        // Dos tarjetas por sílaba
+        silabas = [];
+        Object.keys(datos[nivel]).forEach(s => silabas.push(s, s));
+        barajar(silabas);
+        crearTablero();
+    }
+
+    function crearTablero() {
+        const tablero = document.getElementById("tablero");
+        tablero.innerHTML = "";
+        silabas.forEach(silaba => {
+            const t = document.createElement("div");
+            t.className = "tarjeta";
+            t.dataset.silaba = silaba;
+            t.innerHTML = '<span class="interrogante">?</span>';
+            t.addEventListener("click", () => voltearCarta(t));
+            tablero.appendChild(t);
+        });
+    }
+
+    function voltearCarta(carta) {
+        if (bloqueo || carta.classList.contains("mostrar")) return;
+        const silaba = carta.dataset.silaba;
+        const [emoji, palabra] = datos[nivelActual][silaba];
+        carta.classList.add("mostrar");
+        carta.innerHTML =
+            `<span class="emoji">${emoji}</span>` +
+            `<span class="sil">${silaba}</span>` +
+            `<span class="pal">${palabra}</span>`;
+        if (leerTextoActivo) leerTexto(`${silaba}. ${palabra}`);
+
+        if (!primeraCarta) {
+            primeraCarta = carta;
+        } else {
+            segundaCarta = carta;
+            bloqueo = true;
+            verificarPareja();
+        }
+    }
+
+    function verificarPareja() {
+        const a = primeraCarta, b = segundaCarta;
+        if (a.dataset.silaba === b.dataset.silaba) {
+            if (sonidoActivo) { try { sonidoPar.currentTime = 0; sonidoPar.play().catch(() => {}); } catch (e) {} }
+            a.classList.add("acertada");
+            b.classList.add("acertada");
+            primeraCarta = segundaCarta = null;
+            bloqueo = false;
+            setTimeout(verificarNivelCompletado, 600);
+        } else {
+            setTimeout(() => {
+                [a, b].forEach(c => {
+                    c.classList.remove("mostrar");
+                    c.innerHTML = '<span class="interrogante">?</span>';
+                });
+                primeraCarta = segundaCarta = null;
+                bloqueo = false;
+            }, 1200);
+        }
+    }
+
+    function verificarNivelCompletado() {
+        const total = document.querySelectorAll(".tarjeta").length;
+        const hechas = document.querySelectorAll(".tarjeta.acertada").length;
+        if (total && total === hechas) {
+            if (leerTextoActivo) leerTexto("¡Muy bien! Nivel completado");
+            alert("¡Nivel completado! Puedes elegir otro.");
+        }
+    }
+
+    function leerTexto(texto) {
+        if (!("speechSynthesis" in window)) return;
+        window.speechSynthesis.cancel();
+        const speech = new SpeechSynthesisUtterance(texto);
+        speech.lang = "es-MX";
+        window.speechSynthesis.speak(speech);
+    }
+</script>
+</body>
+</html>
